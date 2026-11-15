@@ -58,19 +58,27 @@ try {
     if (-not $NoUpdate) {
         Step 'Checking latest version on GitHub (main)...'
         & git fetch origin main
-        if ($LASTEXITCODE -ne 0) { Fail 'Could not fetch the latest GitHub changes.' }
-        $status = & git status --porcelain
-        if ($LASTEXITCODE -ne 0) { Fail 'Could not check working tree status.' }
-        if ($status) {
-            Step 'Local changes detected; skipping pull to avoid overwriting your work.'
+        if ($LASTEXITCODE -ne 0) {
+            Step 'WARNING: GitHub is unavailable; building from the local checkout.'
         }
         else {
-            & git pull --ff-only origin main
-            if ($LASTEXITCODE -ne 0) { Fail 'Could not fast-forward to main. Resolve Git divergence first.' }
+            $branch = (& git branch --show-current).Trim()
+            $status = & git status --porcelain
+            if ($LASTEXITCODE -ne 0) { Fail 'Could not check working tree status.' }
+            if ($branch -ne 'main') {
+                Step "Currently on branch '$branch'; skipping pull to protect this branch."
+            }
+            elseif ($status) {
+                Step 'Local changes detected; skipping pull to avoid overwriting your work.'
+            }
+            else {
+                & git pull --ff-only origin main
+                if ($LASTEXITCODE -ne 0) { Fail 'Could not fast-forward main. Resolve Git divergence before updating.' }
+            }
+            $localSha = (& git rev-parse --short HEAD).Trim()
+            $remoteSha = (& git rev-parse --short origin/main).Trim()
+            Step "Local revision: $localSha | Remote main: $remoteSha"
         }
-        $localSha = (& git rev-parse --short HEAD).Trim()
-        $remoteSha = (& git rev-parse --short origin/main).Trim()
-        Step "Local revision: $localSha | Remote main: $remoteSha"
     }
 
     $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
